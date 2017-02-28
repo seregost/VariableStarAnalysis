@@ -58,7 +58,7 @@
     <Compile Include="Models\PPMEntry.cs" />
     <Compile Include="Helpers\FixedLengthFileReader.cs" />
     <Compile Include="Helpers\FixedLengthReader.cs" />
-    <Compile Include="ListExtensions.cs" />
+    <Compile Include="Helpers\ListExtensions.cs" />
     <Compile Include="Models\PointD.cs" />
     <Compile Include="Models\StarCatalog.cs" />
     <Compile Include="Models\StarField.cs" />

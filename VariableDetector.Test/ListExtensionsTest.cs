@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Collections.Generic;
 using VariableDetector.Models;
+using VariableDetector.Helpers;
 
 namespace VariableDetector.Test
 {
