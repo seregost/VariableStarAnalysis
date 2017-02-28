@@ -11,7 +11,7 @@ namespace VariableDetector.Test
         [TestMethod]
         public void TestLoadStarField()
         {
-            StarField field = StarField.LoadStarField(".\\TestSession.csv", new int[] { });
+            StarField field = StarField.LoadStarField(".\\TestSession.csv", ".\\TestSession.csv", new int[] { });
 
             var comparables = field.GetComparables(field.Stars.First());
             Assert.AreEqual(comparables.Count(), 7);
@@ -21,7 +21,7 @@ namespace VariableDetector.Test
         [TestMethod]
         public void TestCalcVMagEstimate()
         {
-            StarField field = StarField.LoadStarField(".\\TestSession.csv", new int[] { });
+            StarField field = StarField.LoadStarField(".\\TestSession.csv", ".\\TestSession.csv", new int[] { });
 
             var targetstar = field.Stars.First();
             var comparables = field.GetComparables(targetstar);

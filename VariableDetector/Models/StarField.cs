@@ -19,7 +19,7 @@ namespace VariableDetector.Models
         /// </summary>
         /// <param name="filename">CSV file for star-field to load</param>
         /// <returns></returns>
-        public static StarField LoadStarField(string vfilename, int[] excludedframes)
+        public static StarField LoadStarField(string vfilename, string bfilename, int[] excludedframes)
         {
             // Load and parse csv.
             TextReader reader = File.OpenText(vfilename);
@@ -95,6 +95,7 @@ namespace VariableDetector.Models
             {
                 Stars = stars
             };
+            field.ComputeMeasuredColorIndex(bfilename, excludedframes);
             return field;
         }
 
@@ -102,7 +103,7 @@ namespace VariableDetector.Models
 
         #region Public Methods
 
-        public void ComputeMeasuredColorIndex(string bfilename, int[] excludedframes)
+        private void ComputeMeasuredColorIndex(string bfilename, int[] excludedframes)
         {
             // Load and parse csv.
             TextReader reader = File.OpenText(bfilename);
@@ -162,6 +163,37 @@ namespace VariableDetector.Models
             while (csv.Read());
 
             csv.Dispose();
+        }
+
+        /// <summary>
+        /// Perform full photometric reduction of the star field.
+        /// </summary>
+        public void DoPhotometricReduction()
+        {
+            foreach (Star star in Stars)
+            {
+                // Build representative list of comparable stars from the same field.
+                List<Star> comparables = GetComparables(star);
+
+                Star controlstar = comparables.Where(x => x.ValidCatalogMag == true).FirstOrDefault();
+                if (controlstar == null)
+                    controlstar = comparables[0];
+
+                CalcDifferentialMag(star, comparables);
+
+                // Calculate ensemble standard deviation.  This establishes measurement error bounds.
+                star.EnsembleError =
+                    CalcEnsembleError(star, comparables);
+
+                CalcBVEstimate(star, comparables);
+
+                // Estimate target vmag and error (error might include variable signal).
+                CalcVMagEstimate(star, comparables);
+
+                // Calculate a score to emphasize non-periodic changes in star flux.
+                star.Score =
+                    CalcVariabilityScore(star);
+            }
         }
 
         /// <summary>

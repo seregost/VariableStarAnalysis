@@ -25,6 +25,27 @@ namespace VariableDetector.Helpers
             }
         }
 
+        public static string GStarFieldFile = "";
+        public static string BStarFieldFile = "";
+
+        public static bool BuildStarDatabase = false;
+
+        public static string PPMCatalogSource
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["PPMCatalogSource"];
+            }
+        }
+
+        public static string VSXCatalogSource
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["VSXCatalogSource"];
+            }
+        }
+
         private static int _comparables = 40;
         public static int Comparables
         {
@@ -49,6 +70,34 @@ namespace VariableDetector.Helpers
             {
                 _meridianflipframe = value;
             }
+        }
+
+        public static bool ParseCommands(string[] args)
+        {
+            for(int i=0; i< args.Count(); i++)
+            {
+                switch(args[i])
+                {
+                    case "-bdb":    // Rebuild star database.
+                        BuildStarDatabase = true;
+                        break;
+                    case "-help":    // Rebuild star database.
+                        Console.WriteLine("TODO: Add help stuff.");
+                        return false;
+                    case "-sf":
+                        if (args.Count() > i + 2)
+                        {
+                            GStarFieldFile = args[++i];
+                            BStarFieldFile = args[++i];
+                        }
+                        else
+                            Console.WriteLine("Please specify input B & V star field files.");
+                        break;
+                    default:
+                        break;
+                }
+            }
+            return true;
         }
     }
 }

@@ -82,6 +82,10 @@ namespace VariableDetector.Models
 
         public bool ValidColorIndex { get; set; }
 
+        public decimal EnsembleError { get; set; }
+
+        public decimal Score { get; set; }
+
         /// <summary>
         /// Instrumental mag series for the star
         /// </summary>
