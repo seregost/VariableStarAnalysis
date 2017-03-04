@@ -25,6 +25,8 @@ namespace VariableDetector.Models
         /// </summary>
         public decimal DEC { get; set; }
 
+        public decimal ImgX { get; set; }
+        public decimal ImgY { get; set; }
         /// <summary>
         /// Error flags for star - used for filtering
         /// </summary>
@@ -75,6 +77,7 @@ namespace VariableDetector.Models
         /// </summary>
         public PPMEntry CatalogEntry { get; set; }
 
+        public List<Star> Comparables { get; set; }
         /// <summary>
         /// Indicator for having proper VMag and B-V values in the catalog.
         /// </summary>
@@ -86,19 +89,46 @@ namespace VariableDetector.Models
 
         public decimal Score { get; set; }
 
+        public List<SampleData> Samples { get; set; }
+    }
+
+    public class SampleData
+    {
         /// <summary>
-        /// Instrumental mag series for the star
+        /// Sample time in JD.
         /// </summary>
-        public List<decimal> InstrumentalVMag { get; set; }
+        public decimal Time { get; set; }
+
+        public decimal InstrumentalFlux { get; set; }
 
         /// <summary>
         /// Instrumental mag series for the star
         /// </summary>
-        public List<decimal> InstrumentalBMag { get; set; }
+        public decimal InstrumentalVMag { get; set; }
 
         /// <summary>
-        /// Calculated differential mag series between the star and it's comparable stars.
+        /// Instrumental mag series for the star using B filter
         /// </summary>
-        public List<decimal> DifferentialMag { get; set; }
+        public decimal InstrumentalBMag { get; set; }
+
+        /// <summary>
+        /// Instrumental uncertainty derived from SNR.
+        /// </summary>
+        public decimal Uncertainty { get; set; }
+
+        /// <summary>
+        /// Differential magnitude of star.
+        /// </summary>
+        public decimal DifferentialVMag { get; set; }
+
+        /// <summary>
+        /// Approximate apparent magnitude of the star.
+        /// </summary>
+        public decimal ApparentVMag { get; set; }
+
+        /// <summary>
+        /// Apparent magnitude with TFA applied.
+        /// </summary>
+        public decimal TFAVMag { get; set; }
     }
 }

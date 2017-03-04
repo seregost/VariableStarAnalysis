@@ -25,8 +25,7 @@ namespace VariableDetector.Helpers
             }
         }
 
-        public static string GStarFieldFile = "";
-        public static string BStarFieldFile = "";
+        public static string InputDirectory = "";
 
         public static bool BuildStarDatabase = false;
 
@@ -85,10 +84,9 @@ namespace VariableDetector.Helpers
                         Console.WriteLine("TODO: Add help stuff.");
                         return false;
                     case "-sf":
-                        if (args.Count() > i + 2)
+                        if (args.Count() > i + 1)
                         {
-                            GStarFieldFile = args[++i];
-                            BStarFieldFile = args[++i];
+                            InputDirectory = args[++i];
                         }
                         else
                             Console.WriteLine("Please specify input B & V star field files.");

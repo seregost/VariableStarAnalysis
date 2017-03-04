@@ -53,6 +53,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Helpers\GlobalVariables.cs" />
+    <Compile Include="Helpers\JulianDateConverter.cs" />
     <Compile Include="Helpers\MathHelper.cs" />
     <Compile Include="Helpers\XYDataSet.cs" />
     <Compile Include="Models\PPMEntry.cs" />
