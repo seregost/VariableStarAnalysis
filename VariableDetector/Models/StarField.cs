@@ -7,109 +7,100 @@ using System.Text;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using VariableDetector.Helpers;
+using VariableDetector.Db;
 
 namespace VariableDetector.Models
 {
     public class StarField
     {
         public List<Star> Stars { get; set; }
-        public List<string> SourceFiles { get; set; }
-        public List<double> ExposureDates { get; set; }
+        public List<D_Frame> Frames { get; set; }
+
         #region Factory
         /// <summary>
         /// Load star-field specified in file
         /// </summary>
         /// <param name="filename">CSV file for star-field to load</param>
         /// <returns></returns>
-        public static StarField LoadStarField(string directory, Dictionary<string, double> filemaps, int[] excludedframes)
+        public static StarField LoadStarField(string chart, StarCatalogContext db)
         {
-            // Load and parse csv.
-            TextReader reader = File.OpenText(directory + "\\series_g.csv");
-            var csv = new CsvReader(reader);
-
-            csv.Configuration.Delimiter = ";";
-            csv.ReadHeader();
-            // Load headers
-
-            int fluxsample = 6;
-            int frame = 1;
             StarField field = new StarField()
             {
                 Stars = new List<Star>(),
-                ExposureDates = new List<double>(),
-                SourceFiles = new List<string>()
+                Frames = db.Frames.Where(x => x.Chart == chart).OrderBy(x => x.Time).ToList()
             };
-            
-            while (fluxsample < csv.FieldHeaders.Count())
-            {
-                string filename = csv.FieldHeaders.GetValue(fluxsample).ToString();
-                if (excludedframes.Where(x => x == frame).Count() == 0)
-                {
-                    KeyValuePair<string, double> match = filemaps.Where(x => filename.Contains(x.Key) == true).First();
-                    field.SourceFiles.Add(filename);
 
-                    field.ExposureDates.Add(match.Value);
+            foreach(D_Frame frame in field.Frames)
+            {
+                // Get all samples for frame.
+                List<F_Sample> samples = db.Samples.Where(x => x.ID_Frame == frame.ID).ToList();
+
+                foreach(F_Sample sample in samples)
+                {
+                    var star = field.Stars.Where(x => x.ID == sample.ID_Star).FirstOrDefault();
+                    if (star == null)
+                    {
+                        var d_star = db.Stars.Where(x => x.ID == sample.ID_Star).First();
+
+                        if (d_star != null)
+                        {
+                            star = new Star()
+                            {
+                                ID = d_star.ID,
+                                Name = d_star.Nameplate,
+                                RA = (decimal)d_star.J2000_RA,
+                                DEC = (decimal)d_star.J2000_DEC,
+                                OID = d_star.OID,
+                                ValidColorIndex = true,
+                                Samples = new List<SampleData>()
+                            };
+                            field.Stars.Add(star);
+                        }
+                        else
+                            continue;  // skip star.
+                    }
+
+                    var data = new SampleData()
+                    {
+                        ImgX = (decimal)sample.ImgX,
+                        ImgY = (decimal)sample.ImgY,
+                        ApetureSize = sample.Aperture,
+                        InstrumentalVFlux = (decimal)sample.FluxV,
+                        InstrumentalBFlux = (decimal)sample.FluxB,
+                        SNR = (decimal)sample.SNR,
+                        Flag = (int)Math.Max(sample.FlagB, sample.FlagV)
+                    };
+
+                    if (sample.SNR > 0)
+                        data.Uncertainty = (decimal)Math.Abs((sample.FluxV + sample.FluxB / sample.SNR).Mag() - sample.FluxV.Mag());
+                    else
+                        data.Uncertainty = -1;
+
+
+                    // Calculated fields
+                    if (data.InstrumentalBFlux <= 0 || data.InstrumentalVFlux <= 0)
+                        star.ValidColorIndex = false;
+                    else
+                    { 
+                        data.InstrumentalBMag = data.InstrumentalBFlux.Mag();
+                        data.InstrumentalVMag = data.InstrumentalVFlux.Mag();
+                    }
+                    
+                    star.Samples.Add(data);
                 }
-                fluxsample++;
-                frame++;
             }
             
-            csv.Read();
-            csv.Read();
-            csv.Read();
-            csv.Read();
-
-            do
+            foreach(Star star in field.Stars)
             {
-                Star star = new Star()
-                {
-                    Name = csv.GetField(0),
-                    RA = csv.GetField<decimal>(1),
-                    DEC = csv.GetField<decimal>(2),
-                    Flags = csv.GetField<int>(3),
-                    MinSNR = csv.GetField<decimal>(5),
-                    Samples = new List<SampleData>()
-                };
-
-                // Load flux measurements.
-                bool validflux = true;
-                string parsedflux;
-
-                fluxsample = 6;
-                frame = 1;
-
-                while (csv.TryGetField(fluxsample++, out parsedflux))
-                {
-                    if (excludedframes.Where(x => x == frame).Count() == 0)
-                    {
-                        decimal flux = 0.0m;
-                        if (decimal.TryParse(parsedflux, out flux) == false)
-                        {
-                            validflux = false;
-                            break;
-                        }
-
-                        SampleData sample = new SampleData()
-                        {
-                            InstrumentalFlux = flux,
-                            InstrumentalVMag = flux.Mag()
-                        };
-
-                        // Calculate measurement uncertainty in instrumentalvmag.
-                        sample.Uncertainty =
-                            Math.Abs((flux + flux / star.MinSNR).Mag() - sample.InstrumentalVMag);
-
-                        // Save flux measurement as instrumental mag.
-                        star.Samples.Add(sample);
-                    }
-                    frame++;
-                }
-
-                if(star.Samples.Count > 0)
+                if (star.Samples.Count > 0)
                     star.EnsembleError = star.Samples.Average(x => x.Uncertainty);
+
+                star.MinSNR = star.Samples.Min(x => x.SNR);
 
                 // Load star catalog
                 star.CatalogEntry = StarCatalog.GetPPMEntry(star.Name);
+
+                star.Flags = star.Samples.Max(x => x.Flag);
 
                 // Calculate color index.
                 if (star.CatalogEntry.Vmag > 0 && star.CatalogEntry.Bmag > 0)
@@ -118,170 +109,18 @@ namespace VariableDetector.Models
                     star.ColorIndex = star.CatalogEntry.Bmag - star.CatalogEntry.Vmag;
                 }
 
-                // If a valid set of magnitude measurements were loaded, calculate instrumental mag and add to valid list.
-                if (validflux == true)
+                if(star.ValidColorIndex == true)
                 {
                     star.AvgInstrumentalMag = star.Samples.Average(x => x.InstrumentalVMag);
-
-                    field.Stars.Add(star);
-                }
+                    star.InstrumentalColorIndex = star.Samples.Average(x => x.InstrumentalBMag) - star.Samples.Average(x => x.InstrumentalVMag);
+                }                
             }
-            while (csv.Read());
-            field.ComputeMeasuredColorIndex(directory, excludedframes);
-            field.GetImageCoords(directory);
-            field.GetSNR(directory);
-
-            csv.Dispose();
-
             return field;
         }
 
         #endregion
 
         #region Helper Methods
-        private string MapFile(string directory, string filename)
-        {
-            string[] files = Directory.GetFiles(directory);
-
-            foreach (string file in files)
-                if (file.Contains(filename))
-                    return file;
-
-            return "";
-        }
-
-        private void GetSNR(string directory)
-        {
-            int i = 0;
-            foreach (string originalfile in SourceFiles)
-            {
-                string file = MapFile(directory, originalfile);
-
-                // Load and parse csv.
-                TextReader reader = File.OpenText(file);
-                var csv = new CsvReader(reader);
-
-                csv.Configuration.Delimiter = ";";
-
-                csv.Read();
-                csv.Read();
-                csv.Read();
-                csv.Read();
-                csv.Read();
-
-                do
-                {
-                    string name = csv.GetField(1);
-
-                    Star star = Stars.Where(x => x.Name == name.Trim()).FirstOrDefault();
-
-                    if (star != null)
-                    {
-                        star.Samples[i].Uncertainty =
-                            Math.Abs((star.Samples[i].InstrumentalFlux + star.Samples[i].InstrumentalFlux / csv.GetField<decimal>(19)).Mag() - star.Samples[i].InstrumentalVMag);
-                    }
-                }
-                while (csv.Read());
-
-                csv.Dispose();
-
-                i++;
-            }
-        }
-
-
-        private void GetImageCoords(string directory)
-        {
-            // Load and parse csv.
-            TextReader reader = File.OpenText(directory + "\\coords.csv");
-            var csv = new CsvReader(reader);
-
-            csv.Configuration.Delimiter = ";";
-
-            csv.Read();
-            csv.Read();
-            csv.Read();
-            csv.Read();
-            csv.Read();
-
-            do
-            {
-                string name = csv.GetField(1);
-
-                Star star = Stars.Where(x => x.Name == name.Trim()).FirstOrDefault();
-
-                if (star != null)
-                {
-                    star.ImgX = csv.GetField<decimal>(7);
-                    star.ImgY = csv.GetField<decimal>(8);
-                }
-            }
-            while (csv.Read());
-
-            csv.Dispose();
-        }
-
-        private void ComputeMeasuredColorIndex(string directory, int[] excludedframes)
-        {
-            // Load and parse csv.
-            TextReader reader = File.OpenText(directory + "\\series_b.csv");
-            var csv = new CsvReader(reader);
-
-            csv.Configuration.Delimiter = ";";
-
-            csv.Read();
-            csv.Read();
-            csv.Read();
-            csv.Read();
-
-            do
-            {
-                string name = csv.GetField(0);
-
-                Star star = Stars.Where(x => x.Name == name).FirstOrDefault();
-                int flag = csv.GetField<int>(3);
-
-                // Only try to load valid stars
-                if (star != null && (flag == 0 || flag == 16))
-                {
-                    bool validflux = true;
-                    int fluxsample = 6;
-                    int frame = 1;
-                    string parsedflux;
-
-                    if (flag == 16)
-                        star.Saturated = true;
-
-                    List<decimal> bmags = new List<decimal>();
-                    while (csv.TryGetField(fluxsample++, out parsedflux))
-                    {
-                        if (excludedframes.Where(x => x == frame).Count() == 0)
-                        {
-                            decimal flux = 0.0m;
-                            if (decimal.TryParse(parsedflux, out flux) == false)
-                            {
-                                validflux = false;
-                                break;
-                            }
-                            // Save flux measurement as instrumental mag.
-                            star.Samples[frame - 1].InstrumentalBMag = flux.Mag();
-                        }
-                        frame++;
-                    }
-
-                    if (validflux == true)
-                    {
-                        star.ValidColorIndex = true;
-
-                        star.InstrumentalColorIndex = star.Samples.Average(x => x.InstrumentalBMag) - star.Samples.Average(x => x.InstrumentalVMag);
-                    }
-                }
-            }
-            while (csv.Read());
-
-            csv.Dispose();
-        }
-
         public void RunTFA()
         {
             Process process = new Process();
@@ -317,10 +156,17 @@ namespace VariableDetector.Models
 
                 // Estimate target vmag and error (error might include variable signal).
                 CalcVMagEstimate(star, star.Comparables);
-
             }
 
-            PerformTFAFilter();
+            // Perform optional TFA filter - only useful if there are more than one samples in the time series.
+            if(Stars[0].Samples.Count > 10)
+                PerformTFAFilter();
+
+            foreach (Star star in Stars)
+            {
+                star.Score =
+                    CalcVariabilityScore(star);
+            }
         }
 
         public void PerformTFAFilter()
@@ -347,7 +193,7 @@ namespace VariableDetector.Models
 
                 // Output light curve file.
                 for (int i = 0; i < star.Samples.Count(); i++)
-                    tfa_curve.AppendLine(String.Format("{0:0.00000} {1:0.00000} {2:0.00000}", ExposureDates[i], Math.Round(star.Samples[i].ApparentVMag, 4), star.Samples[i].Uncertainty));
+                    tfa_curve.AppendLine(String.Format("{0:0.00000} {1:0.00000} {2:0.00000}", Frames[i].Time, Math.Round(star.Samples[i].ApparentVMag, 4), star.Samples[i].Uncertainty));
                 File.WriteAllText(".\\vin\\" + star.Name, tfa_curve.ToString());
 
                 // Write input file.
@@ -360,8 +206,8 @@ namespace VariableDetector.Models
             StringBuilder tfa_dates = new StringBuilder();
 
             int d = 0;
-            foreach (decimal exposuredate in ExposureDates)
-                tfa_dates.AppendLine(String.Format("{0}.FITS {1}", d++, exposuredate));
+            foreach (D_Frame frame in Frames)
+                tfa_dates.AppendLine(String.Format("{0}.FITS {1}", d++, frame.Time));
             File.WriteAllText(".\\tfa_dates", tfa_dates.ToString());
 
             tfa_batch.AppendLine(string.Format("vartools.exe -l vin/tfa_input -oneline -rms -TFA vin/tfa_trend tfa_dates 25.0 1 0 0 -o vout"));
@@ -400,16 +246,24 @@ namespace VariableDetector.Models
         /// <returns></returns>
         public List<Star> GetComparables(Star target)
         {
+            //List<Star> comparables =
+            //    Stars
+            //        .OrderByDescending(x => x.MinSNR)
+            //        .Where(x => x.Flags == 0 && x.OID == -1 && x.ValidCatalogMag == true && x.ValidColorIndex == true)
+            //        .Take(GlobalVariables.Comparables)
+            //        .ToList();
+
+
             // Build representative field of comparable stars.
             List<Star> comparables =
                 Stars
-                    .Where(x => x.AvgInstrumentalMag < target.AvgInstrumentalMag && x.ValidCatalogMag == true)
+                    .Where(x => x.AvgInstrumentalMag < target.AvgInstrumentalMag && x.Flags == 0 && x.ValidCatalogMag == true && x.ValidColorIndex == true && x.OID == -1)
                     .Take(GlobalVariables.Comparables / 2)
                     .ToList();
 
             List<Star> less =
                 Stars
-                    .Where(x => x.AvgInstrumentalMag > target.AvgInstrumentalMag && x.ValidCatalogMag == true)
+                    .Where(x => x.AvgInstrumentalMag > target.AvgInstrumentalMag && x.Flags == 0 && x.ValidCatalogMag == true && x.ValidColorIndex == true && x.OID == -1)
                     .OrderBy(x => x.AvgInstrumentalMag)
                     .Take(GlobalVariables.Comparables - comparables.Count)
                     .ToList();
@@ -418,7 +272,7 @@ namespace VariableDetector.Models
             {
                 comparables =
                     Stars
-                        .Where(x => x.AvgInstrumentalMag < target.AvgInstrumentalMag && x.ValidCatalogMag == true)
+                        .Where(x => x.AvgInstrumentalMag < target.AvgInstrumentalMag && x.Flags == 0 && x.ValidCatalogMag == true && x.ValidColorIndex == true && x.OID == -1)
                         .Take(GlobalVariables.Comparables - less.Count)
                         .ToList();
             }
@@ -464,7 +318,6 @@ namespace VariableDetector.Models
 
             // Calculate weighted deviation - weight is the difference in instrumental mag between the target and comparable.
             return target.EnsembleError;
-            //return ensembledev.WeightedAverage(z => (decimal)z.Y, f => (decimal)f.X);
         }
 
         public Star CalcBVEstimate(Star target, List<Star> comparables)
@@ -506,13 +359,15 @@ namespace VariableDetector.Models
 
                 // transform coefficient for filter differences if the target star's color index is known.
                 // TODO: Fetch instrumental BMag for all stars in frame.
-                if(target.ValidColorIndex == true)
+                if (target.ValidColorIndex == true)
                     calc += (decimal)set.Slope * target.CalculatedColorIndex;
                 else if (target.ValidCatalogMag == true)
                     calc += (decimal)set.Slope * target.ColorIndex;
+                
 
 
                 target.Samples[i].ApparentVMag = calc;
+                target.Samples[i].TFAVMag = calc;
             }
 
             target.VMag = target.Samples.Average(x => x.ApparentVMag);

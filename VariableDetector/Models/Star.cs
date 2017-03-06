@@ -10,10 +10,17 @@ namespace VariableDetector.Models
 {
     public class Star
     {
+        public int ID { get; set; }
+
         /// <summary>
         /// PPMX name for star
         /// </summary>
         public string Name { get; set; }
+
+        /// <summary>
+        /// OID of star in AAVSO database.
+        /// </summary>
+        public int OID { get; set; }
 
         /// <summary>
         /// Right Ascencsion coordinate of star
@@ -25,8 +32,16 @@ namespace VariableDetector.Models
         /// </summary>
         public decimal DEC { get; set; }
 
+        /// <summary>
+        /// X location in image
+        /// </summary>
         public decimal ImgX { get; set; }
+
+        /// <summary>
+        /// Y location in iamge
+        /// </summary>
         public decimal ImgY { get; set; }
+
         /// <summary>
         /// Error flags for star - used for filtering
         /// </summary>
@@ -48,7 +63,7 @@ namespace VariableDetector.Models
         public decimal MinSNR { get; set; }
 
         /// <summary>
-        /// Minimum SNR for the star - used for filtering.
+        /// Whether the star is saturated.
         /// </summary>
         public bool Saturated { get; set; }
 
@@ -81,6 +96,7 @@ namespace VariableDetector.Models
         /// <summary>
         /// Indicator for having proper VMag and B-V values in the catalog.
         /// </summary>
+        /// 
         public bool ValidCatalogMag { get; set; }
 
         public bool ValidColorIndex { get; set; }
@@ -90,45 +106,5 @@ namespace VariableDetector.Models
         public decimal Score { get; set; }
 
         public List<SampleData> Samples { get; set; }
-    }
-
-    public class SampleData
-    {
-        /// <summary>
-        /// Sample time in JD.
-        /// </summary>
-        public decimal Time { get; set; }
-
-        public decimal InstrumentalFlux { get; set; }
-
-        /// <summary>
-        /// Instrumental mag series for the star
-        /// </summary>
-        public decimal InstrumentalVMag { get; set; }
-
-        /// <summary>
-        /// Instrumental mag series for the star using B filter
-        /// </summary>
-        public decimal InstrumentalBMag { get; set; }
-
-        /// <summary>
-        /// Instrumental uncertainty derived from SNR.
-        /// </summary>
-        public decimal Uncertainty { get; set; }
-
-        /// <summary>
-        /// Differential magnitude of star.
-        /// </summary>
-        public decimal DifferentialVMag { get; set; }
-
-        /// <summary>
-        /// Approximate apparent magnitude of the star.
-        /// </summary>
-        public decimal ApparentVMag { get; set; }
-
-        /// <summary>
-        /// Apparent magnitude with TFA applied.
-        /// </summary>
-        public decimal TFAVMag { get; set; }
     }
 }

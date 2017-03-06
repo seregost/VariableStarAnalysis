@@ -25,9 +25,28 @@ namespace VariableDetector.Helpers
             }
         }
 
+        public static double LocLat
+        {
+            get
+            {
+                return Convert.ToDouble(ConfigurationManager.AppSettings["LocLat"]);
+            }
+        }
+
+        public static double LocLng
+        {
+            get
+            {
+                return Convert.ToDouble(ConfigurationManager.AppSettings["LocLng"]);
+            }
+        }
+
         public static string InputDirectory = "";
+        public static string Chart = "";
 
         public static bool BuildStarDatabase = false;
+        public static bool LoadFrames = false;
+        public static bool LoadResults = false;
 
         public static string PPMCatalogSource
         {
@@ -45,7 +64,7 @@ namespace VariableDetector.Helpers
             }
         }
 
-        private static int _comparables = 40;
+        private static int _comparables = 10;
         public static int Comparables
         {
             get
@@ -77,20 +96,48 @@ namespace VariableDetector.Helpers
             {
                 switch(args[i])
                 {
-                    case "-bdb":    // Rebuild star database.
-                        BuildStarDatabase = true;
-                        break;
-                    case "-help":    // Rebuild star database.
+                    case "-help":
                         Console.WriteLine("TODO: Add help stuff.");
                         return false;
-                    case "-sf":
+
+                    case "-builddb":    // Rebuild star database.
+                        BuildStarDatabase = true;
+                        break;
+
+                    case "-analyze":
                         if (args.Count() > i + 1)
                         {
-                            InputDirectory = args[++i];
+                            Chart = args[++i];
                         }
                         else
-                            Console.WriteLine("Please specify input B & V star field files.");
+                            Console.WriteLine("Please specify input chart for analysis.");
                         break;
+
+                    case "-lframes":
+                        if (args.Count() > i + 1)
+                        { 
+                            LoadFrames = true;
+                            InputDirectory = args[++i];
+                            break;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Please specify directory for loading frames.");
+                            return false;
+                        }
+                        
+                    case "-lresults":
+                        if (args.Count() > i + 1)
+                        {
+                            LoadResults = true;
+                            InputDirectory = args[++i];
+                            break;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Please specify directory containing results.");
+                            return false;
+                        }
                     default:
                         break;
                 }

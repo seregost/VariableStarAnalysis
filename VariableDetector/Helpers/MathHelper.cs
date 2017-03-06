@@ -17,5 +17,10 @@ namespace VariableDetector.Helpers
         {
             return -2.5m * (decimal)Math.Log10((double)us);
         }
+
+        public static double Mag(this double us)
+        {
+            return -2.5 * Math.Log10(us);
+        }
     }
 }

@@ -12,6 +12,7 @@ namespace VariableDetector.Models
 {
     public static class StarCatalog
     {
+        #region Private
         private static DB _ppmdb = DB.Open(GlobalVariables.PPMCatalogPath, GetOptions());
 
         private static Options GetOptions()
@@ -26,6 +27,54 @@ namespace VariableDetector.Models
             return opts;
         }
 
+        private static string FindPPMXKey(float RA, float DEC)
+        {
+            List<string> keys = ConvertToKey(RA, DEC);
+
+            foreach (string key in keys)
+            {
+                Slice value;
+                lock (_ppmdb)
+                {
+                    ReadOptions options = ReadOptions.Default;
+                    options.FillCache = true;
+                    options.VerifyChecksums = true;
+                    if (_ppmdb.TryGet(options, key, out value))
+                        return key;
+                }
+
+            }
+            return null;
+        }
+
+        private static List<string> ConvertToKey(float RA, float DEC)
+        {
+            int HH = (int)(RA / 15);
+            int MM = (int)(((RA / 15) - HH) * 60);
+            float SS = ((((RA / 15) - HH) * 60) - MM) * 60;
+
+            string sign = "+";
+            if (DEC < 0)
+                sign = "-";
+
+            int D = (int)(Math.Abs(DEC));
+            int M = (int)((Math.Abs(DEC) - D) * 60);
+            int S = (int)Math.Floor((((Math.Abs(DEC) - D) * 60) - M) * 60);
+
+            List<string> possibilities = new List<string>();
+
+            var SS2 = (float)(Math.Floor(SS * 10) / 10.0);
+            var SS3 = (float)(Math.Floor((SS - 0.1) * 10) / 10.0);
+
+            possibilities.Add(string.Format("{0:00}{1:00}{2:00.0}{3}{4:00}{5:00}{6:00}", HH, MM, SS, sign, D, M, S));
+            possibilities.Add(string.Format("{0:00}{1:00}{2:00.0}{3}{4:00}{5:00}{6:00}", HH, MM, SS2, sign, D, M, S));
+            possibilities.Add(string.Format("{0:00}{1:00}{2:00.0}{3}{4:00}{5:00}{6:00}", HH, MM, SS3, sign, D, M, S));
+
+            return possibilities;
+        }
+        #endregion
+
+        #region Public
         public static void BuildPPMCatalog(string directory)
         {
             string[] files = Directory.GetFiles(directory);
@@ -117,57 +166,6 @@ namespace VariableDetector.Models
         {
             _ppmdb.Dispose();
         }
-
-        private static string FindPPMXKey(float RA, float DEC)
-        {
-            List<string> keys = ConvertToKey(RA, DEC);
-
-            foreach(string key in keys)
-            {
-                try
-                { 
-                    Slice value;
-                    lock(_ppmdb)
-                    {
-                        ReadOptions options = ReadOptions.Default;
-                        options.FillCache = true;
-                        options.VerifyChecksums = true;
-                        if (_ppmdb.TryGet(options, key, out value))
-                            return key;
-                    }
-                }
-                catch(AccessViolationException ex)
-                {
-                    return null;
-                }
-            }
-            return null;
-        }
-
-        private static List<string> ConvertToKey(float RA, float DEC)
-        {
-            int HH = (int)(RA/15);
-            int MM = (int)(((RA / 15) - HH) * 60);
-            float SS = ((((RA / 15) - HH) * 60) - MM) * 60;
-
-            string sign = "+";
-            if (DEC < 0)
-                sign = "-";
-
-            int D = (int)(Math.Abs(DEC));
-            int M = (int)((Math.Abs(DEC)-D)*60);
-            int S = (int)Math.Floor((((Math.Abs(DEC)-D)*60)-M)*60);
-
-            List<string> possibilities = new List<string>();
-
-            var SS2 = (float)(Math.Floor(SS * 10) / 10.0);
-            var SS3 = (float)(Math.Floor((SS-0.1) * 10) / 10.0);
-
-            possibilities.Add(string.Format("{0:00}{1:00}{2:00.0}{3}{4:00}{5:00}{6:00}", HH, MM, SS, sign, D, M, S));
-            possibilities.Add(string.Format("{0:00}{1:00}{2:00.0}{3}{4:00}{5:00}{6:00}", HH, MM, SS2, sign, D, M, S));
-            possibilities.Add(string.Format("{0:00}{1:00}{2:00.0}{3}{4:00}{5:00}{6:00}", HH, MM, SS3, sign, D, M, S));
-            
-            return possibilities;
-        }
+        #endregion
     }
 }
