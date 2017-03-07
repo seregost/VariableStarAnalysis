@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using VariableDetector.Models;
 using VariableDetector.Db;
+using System.Text.RegularExpressions;
 
 namespace VariableDetector.Helpers
 {
@@ -25,7 +26,7 @@ namespace VariableDetector.Helpers
         /// </summary>
         /// <param name="filename">CSV file for star-field to load</param>
         /// <returns></returns>
-        public void LoadStarField(string directory, StarCatalogContext db)
+        public void LoadStarField(string directory, string chartname, StarCatalogContext db)
         {
             // Load and parse csv.
             TextReader reader = File.OpenText(directory + "\\series_g.csv");
@@ -40,13 +41,17 @@ namespace VariableDetector.Helpers
             {
                 string filename = csv.FieldHeaders.GetValue(fluxsample++).ToString();
                 var match = db.Frames.Where(x => filename.Contains(x.File)).First();
-
+                match.Chart = chartname;
                 frames.Add(match);
             }
+            db.SaveChanges();
 
             csv.Read();
             csv.Read();
             csv.Read();
+
+            int aperture = GetAperture(csv.GetField(6));
+
             csv.Read();
 
             // Pre-load all existing sample data for frames.
@@ -90,16 +95,14 @@ namespace VariableDetector.Helpers
                     if(existingsamples.Where(x => x.ID_Frame == frames[frame].ID && x.ID_Star == star.ID).Count() == 0)
                     { 
                         double flux = 0.0;
-                        if (double.TryParse(parsedflux, out flux) == false)
-                            flux = -1.0;
+                        double.TryParse(parsedflux, out flux);
 
                         F_Sample sample = new F_Sample()
                         {
                             Star = star,
                             ID_Frame = frames[frame].ID,
-                            Aperture = -1,
-                            FluxV = flux,
-                            FlagV = flag
+                            Aperture = aperture,
+                            FluxV = flux
                         };
 
                         // Save flux measurement as instrumental mag.
@@ -132,6 +135,17 @@ namespace VariableDetector.Helpers
             csv.Dispose();
         }
 
+        private int GetAperture(string sample)
+        {
+            string pattern = @"\d+";
+            Regex rgx = new Regex(pattern, RegexOptions.IgnoreCase);
+            MatchCollection matches = rgx.Matches(sample);
+
+            if (matches.Count > 0)
+                return Convert.ToInt32(matches[0].Value);
+
+            return -1;
+        }
         private void LoadInstrumentalColorIndex(string directory)
         {
             // Load and parse csv.
@@ -162,11 +176,8 @@ namespace VariableDetector.Helpers
                     while (csv.TryGetField(fluxsample++, out parsedflux))
                     {
                         double flux = 0.0;
-                        if (double.TryParse(parsedflux, out flux) == false)
-                        {
-                            flux = -1.0;
-                            break;
-                        }
+                        double.TryParse(parsedflux, out flux);
+
                         var sample = samples.Where(x => x.ID_Frame == frames[frame].ID && x.ID_Star == star.ID).First();
                         sample.FluxB = flux;
                         sample.FlagB = flag;
@@ -227,6 +238,10 @@ namespace VariableDetector.Helpers
                             sample.ImgX = csv.GetField<double>(7);
                             sample.ImgY = csv.GetField<double>(8);
                             sample.SNR = csv.GetField<double>(19);
+
+                            // HACK because sometimes pixinsight sends out a non integer flag?
+                            int flag = 999;
+                            int.TryParse(csv.GetField<string>(20), out flag);
                         }
                     }
                 }

@@ -8,6 +8,8 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using VariableDetector.Helpers;
 using VariableDetector.Db;
+using MathNet.Numerics;
+using MathNet.Numerics.LinearAlgebra.Complex;
 
 namespace VariableDetector.Models
 {
@@ -15,6 +17,8 @@ namespace VariableDetector.Models
     {
         public List<Star> Stars { get; set; }
         public List<D_Frame> Frames { get; set; }
+        public List<D_ChartEntry> ChartEntries { get; set; }
+        public List<Star> ChartComparables { get; set; }
 
         #region Factory
         /// <summary>
@@ -27,8 +31,11 @@ namespace VariableDetector.Models
             StarField field = new StarField()
             {
                 Stars = new List<Star>(),
-                Frames = db.Frames.Where(x => x.Chart == chart).OrderBy(x => x.Time).ToList()
+                Frames = db.Frames.Where(x => x.Chart == chart).OrderBy(x => x.Time).ToList(),
+                ChartComparables = new List<Star>()
             };
+
+            field.ChartEntries = db.ChartEntries.Where(x => x.Chart == chart).ToList();
 
             foreach(D_Frame frame in field.Frames)
             {
@@ -68,7 +75,7 @@ namespace VariableDetector.Models
                         InstrumentalVFlux = (decimal)sample.FluxV,
                         InstrumentalBFlux = (decimal)sample.FluxB,
                         SNR = (decimal)sample.SNR,
-                        Flag = (int)Math.Max(sample.FlagB, sample.FlagV)
+                        Flag = sample.FlagV
                     };
 
                     if (sample.SNR > 0)
@@ -86,10 +93,14 @@ namespace VariableDetector.Models
                         data.InstrumentalVMag = data.InstrumentalVFlux.Mag();
                     }
                     
+                    star.Flags |= sample.FlagB;
                     star.Samples.Add(data);
                 }
             }
-            
+
+            // Filter out any bad flags.
+            //field.Stars = field.Stars.Where(x => x.Flags < 16).ToList();
+
             foreach(Star star in field.Stars)
             {
                 if (star.Samples.Count > 0)
@@ -100,7 +111,7 @@ namespace VariableDetector.Models
                 // Load star catalog
                 star.CatalogEntry = StarCatalog.GetPPMEntry(star.Name);
 
-                star.Flags = star.Samples.Max(x => x.Flag);
+                star.Flags = Math.Max(star.Flags, star.Samples.Max(x => x.Flag));
 
                 // Calculate color index.
                 if (star.CatalogEntry.Vmag > 0 && star.CatalogEntry.Bmag > 0)
@@ -115,6 +126,26 @@ namespace VariableDetector.Models
                     star.InstrumentalColorIndex = star.Samples.Average(x => x.InstrumentalBMag) - star.Samples.Average(x => x.InstrumentalVMag);
                 }                
             }
+
+            foreach(D_ChartEntry entry in field.ChartEntries)
+            {
+                double ra = entry.J2000_RA;
+                double dec = entry.J2000_DEC;
+                var star = field.Stars.Where(x => Math.Abs((double)x.RA - ra) < 0.01 && Math.Abs((double)x.DEC - dec) < 0.01).FirstOrDefault();
+
+                if(star != null)
+                {
+                    if(star.Flags < 16)
+                    { 
+                        star.ColorIndex = (decimal)entry.BVColor;
+                        star.CatalogEntry.Vmag = (decimal)entry.VMag;
+                        star.Label = entry.Label;
+                        field.ChartComparables.Add(star);
+                    }
+                }
+            }
+            if (field.ChartComparables.Count > 0)
+                field.ChartComparables[0].Label = "[CHECK] " + field.ChartComparables[0].Label;
             return field;
         }
 
@@ -132,6 +163,20 @@ namespace VariableDetector.Models
 
         #region Public Methods
 
+        public void LogFit()
+        {
+            List<Star> stars = Stars.Where(x => x.ValidCatalogMag == true && Math.Abs(x.VMag - x.CatalogEntry.Vmag) < 1.0m).OrderBy(x => x.VMag).ToList();
+
+            double[] vmag = stars.Select(x => (double)x.VMag).ToArray();
+            double[] amag = stars.Select(x => (double)x.CatalogEntry.Vmag).ToArray();
+
+            //Func<double, double> func = Fit.LinearCombinationFunc(vmag, amag, x => Math.Log(x), x => 1);
+
+            Func<double, double> func = Fit.PolynomialFunc(vmag, amag, 2);
+
+            //this.Stars.ForEach(x => x.VMag = (decimal)func((double)x.VMag));
+        }
+
         /// <summary>
         /// Perform full photometric reduction of the star field.
         /// </summary>
@@ -141,6 +186,10 @@ namespace VariableDetector.Models
             {
                 // Build representative list of comparable stars from the same field.
                 star.Comparables = GetComparables(star);
+
+                // Can't calculate photometry if there aren't enough comparables!
+                if (star.Comparables.Count < 2)
+                    continue;
 
                 Star controlstar = star.Comparables.Where(x => x.ValidCatalogMag == true).FirstOrDefault();
                 if (controlstar == null)
@@ -157,6 +206,8 @@ namespace VariableDetector.Models
                 // Estimate target vmag and error (error might include variable signal).
                 CalcVMagEstimate(star, star.Comparables);
             }
+
+            LogFit();
 
             // Perform optional TFA filter - only useful if there are more than one samples in the time series.
             if(Stars[0].Samples.Count > 10)
@@ -179,7 +230,7 @@ namespace VariableDetector.Models
             StringBuilder tfa_input = new StringBuilder();
 
             List<Star> trendstars = new List<Star>();
-            trendstars = Stars.OrderByDescending(x => x.MinSNR).Where(x => x.Flags == 0).Take(10).ToList();
+            trendstars = ChartComparables.OrderByDescending(x => x.MinSNR).Where(x => x.Flags == 0).Take(6).ToList();
 
             foreach (Star comparable in trendstars)
                 tfa_trend.AppendLine(String.Format("{0} {1:0.00} {2:0.00}", "vin/" + comparable.Name, comparable.ImgX, comparable.ImgY));
@@ -253,31 +304,35 @@ namespace VariableDetector.Models
             //        .Take(GlobalVariables.Comparables)
             //        .ToList();
 
+            List<Star> comparables = ChartComparables.Skip(1)
+                .Where(x => x.ValidColorIndex == true && x.Name != target.Name).ToList();
 
-            // Build representative field of comparable stars.
-            List<Star> comparables =
-                Stars
-                    .Where(x => x.AvgInstrumentalMag < target.AvgInstrumentalMag && x.Flags == 0 && x.ValidCatalogMag == true && x.ValidColorIndex == true && x.OID == -1)
-                    .Take(GlobalVariables.Comparables / 2)
-                    .ToList();
-
-            List<Star> less =
-                Stars
-                    .Where(x => x.AvgInstrumentalMag > target.AvgInstrumentalMag && x.Flags == 0 && x.ValidCatalogMag == true && x.ValidColorIndex == true && x.OID == -1)
-                    .OrderBy(x => x.AvgInstrumentalMag)
-                    .Take(GlobalVariables.Comparables - comparables.Count)
-                    .ToList();
-
-            if (less.Count + comparables.Count < GlobalVariables.Comparables)
-            {
+            if(comparables.Count() == 0)
+            { 
+                // Build representative field of comparable stars.
                 comparables =
                     Stars
                         .Where(x => x.AvgInstrumentalMag < target.AvgInstrumentalMag && x.Flags == 0 && x.ValidCatalogMag == true && x.ValidColorIndex == true && x.OID == -1)
-                        .Take(GlobalVariables.Comparables - less.Count)
+                        .Take(GlobalVariables.Comparables / 2)
                         .ToList();
-            }
 
-            comparables.AddRange(less);
+                List<Star> less =
+                    Stars
+                        .Where(x => x.AvgInstrumentalMag > target.AvgInstrumentalMag && x.Flags == 0 && x.ValidCatalogMag == true && x.ValidColorIndex == true && x.OID == -1)
+                        .OrderBy(x => x.AvgInstrumentalMag)
+                        .Take(GlobalVariables.Comparables - comparables.Count)
+                        .ToList();
+
+                if (less.Count + comparables.Count < GlobalVariables.Comparables)
+                {
+                    comparables =
+                        Stars
+                            .Where(x => x.AvgInstrumentalMag < target.AvgInstrumentalMag && x.Flags == 0 && x.ValidCatalogMag == true && x.ValidColorIndex == true && x.OID == -1)
+                            .Take(GlobalVariables.Comparables - less.Count)
+                            .ToList();
+                }
+                comparables.AddRange(less);
+            }           
 
             return comparables;
         }
@@ -333,7 +388,6 @@ namespace VariableDetector.Models
                     bvins.Add((double)otherstar.InstrumentalColorIndex);
                 }
                 XYDataSet set = new XYDataSet(bvins, bvcat);
-
                 target.CalculatedColorIndex = (decimal)set.Slope * target.InstrumentalColorIndex + (decimal)set.YIntercept;
             }
             return target;
@@ -363,9 +417,8 @@ namespace VariableDetector.Models
                     calc += (decimal)set.Slope * target.CalculatedColorIndex;
                 else if (target.ValidCatalogMag == true)
                     calc += (decimal)set.Slope * target.ColorIndex;
+
                 
-
-
                 target.Samples[i].ApparentVMag = calc;
                 target.Samples[i].TFAVMag = calc;
             }
@@ -373,6 +426,7 @@ namespace VariableDetector.Models
             target.VMag = target.Samples.Average(x => x.ApparentVMag);
             target.e_VMag = target.Samples.Select(x => x.ApparentVMag).StdDev();
 
+            //target.VMag = (decimal)(10.354 * Math.Log((double)target.VMag) - 13.824);
             return target;
         }
 
@@ -392,7 +446,8 @@ namespace VariableDetector.Models
                 score /= 2 * (target.Samples.Count - 1);
                 score = (decimal)Math.Sqrt((double)score);
 
-                score = target.Samples.Select(x => x.TFAVMag).StdDev() / score;
+                if(score != 0)
+                    score = target.Samples.Select(x => x.TFAVMag).StdDev() / score;
             }
 
             return score;

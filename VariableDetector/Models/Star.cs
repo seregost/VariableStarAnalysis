@@ -22,6 +22,8 @@ namespace VariableDetector.Models
         /// </summary>
         public int OID { get; set; }
 
+        public string Label { get; set; }
+
         /// <summary>
         /// Right Ascencsion coordinate of star
         /// </summary>

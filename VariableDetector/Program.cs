@@ -37,22 +37,25 @@ namespace VariableDetector
                 }
 
                 if(GlobalVariables.LoadResults == true)
-                { 
-                    SampleManager manager = new SampleManager();
-                    manager.LoadStarField(GlobalVariables.InputDirectory, db);
+                {
+                    string chartname = 
+                        new ChartManager().LoadChart(GlobalVariables.InputDirectory, db);
+
+                    new SampleManager().LoadStarField(GlobalVariables.InputDirectory, chartname, db);
+
                     return;
                 }
 
                 var field = StarField.LoadStarField(GlobalVariables.Chart, db);
 
                 // Apply quality filter.
-                field.Stars = field.Stars.OrderByDescending(x => x.AvgInstrumentalMag).Where(x => x.MinSNR > 50 && x.Flags == 0).ToList();
+                field.Stars = field.Stars.OrderByDescending(x => x.AvgInstrumentalMag).Where(x => x.MinSNR > 20).ToList();
 
                 field.DoPhotometricReduction();
 
                 // Output results
                 StringBuilder candidates = new StringBuilder();
-                candidates.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11}", "Star", "RMag", "C-VMag", "C-VMag-E", "VMag", "C-ColorIndex", "ColorIndex", "Saturated", "Known Variable", "Uncertainty", "Score", "URL"));
+                candidates.AppendLine(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12}", "Star", "RMag", "C-VMag", "C-VMag-E", "VMag", "C-ColorIndex", "ColorIndex", "Label", "Known Variable", "Uncertainty", "Score", "Flags", "URL"));
 
                 StringBuilder timeseries = new StringBuilder();
                 timeseries.AppendLine(String.Format("{0},{1},{2},{3},{4},{5}", "Score", "Star", "ObsDate", "VMag", "TFAMag", "Uncertainty"));
@@ -60,11 +63,12 @@ namespace VariableDetector
                 foreach (Star star in field.Stars)
                 {
                     VSXEntry entry = StarCatalog.GetVSXEntry(star.Name);
+
                     string variabletype = "";
                     if (entry != null)
                         variabletype = "http://www.aavso.org/vsx/index.php?view=detail.top&oid=" + entry.OID.Trim();
 
-                    candidates.Append(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10}",
+                    candidates.Append(String.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11}",
                         star.Name,
                         star.CatalogEntry.Rmag,
                         star.VMag,
@@ -72,10 +76,11 @@ namespace VariableDetector
                         star.CatalogEntry.Vmag,
                         star.CalculatedColorIndex,
                         star.ColorIndex,
-                        star.Saturated == true ? "X" : "",
+                        star.Label,
                         variabletype,
                         star.EnsembleError,
-                        star.Score));
+                        star.Score,
+                        Convert.ToString(star.Flags, 2).PadLeft(5, '0')));
 
                     // Output the calculated differential magnitude with the comparable star.
                     int i = 0;
