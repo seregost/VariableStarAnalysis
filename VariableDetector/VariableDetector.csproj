@@ -51,6 +51,10 @@
       <HintPath>..\packages\EntityFramework.6.1.3\lib\net45\EntityFramework.SqlServer.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="GAF, Version=2.3.0.22457, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\GAF.2.3.0\lib\net45\GAF.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="LevelDB.Net, Version=0.0.0.0, Culture=neutral, processorArchitecture=AMD64">
       <HintPath>packages\LevelDB.Net.1.2.1\lib\net40\LevelDB.Net.dll</HintPath>
       <Private>True</Private>
@@ -86,6 +90,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Db\StarCatalogDb.cs" />
+    <Compile Include="Helpers\ChartBuilder.cs" />
     <Compile Include="Helpers\ChartManager.cs" />
     <Compile Include="Helpers\GlobalVariables.cs" />
     <Compile Include="Helpers\FrameManager.cs" />
@@ -101,7 +106,7 @@
     <Compile Include="Models\SampleData.cs" />
     <Compile Include="Models\StarCatalog.cs" />
     <Compile Include="Models\StarField.cs" />
-    <Compile Include="Models\VSXEntry.cs" />
+    <Compile Include="Db\D_VSXEntry.cs" />
     <Compile Include="Models\XPMEntry.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

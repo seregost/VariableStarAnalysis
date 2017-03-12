@@ -19,7 +19,7 @@ namespace VariableDetector.Helpers
 
         public void read<T>(T data)
         {
-            foreach (FieldInfo fi in typeof(T).GetFields())
+            foreach (PropertyInfo fi in typeof(T).GetProperties())
             {
                 foreach (object attr in fi.GetCustomAttributes())
                 {
@@ -31,23 +31,23 @@ namespace VariableDetector.Helpers
                         { 
                             string sub = stream.Substring(la.index, la.length);
 
-                            if (fi.FieldType.Equals(typeof(int)))
+                            if (fi.PropertyType.Equals(typeof(int)))
                             {
                                 if(sub.Trim().Length > 0)
                                     fi.SetValue(data, Convert.ToInt32(sub));
                             }
-                            else if (fi.FieldType.Equals(typeof(char)))
+                            else if (fi.PropertyType.Equals(typeof(char)))
                             {
                                 fi.SetValue(data, Convert.ToChar(sub));
                             }
-                            else if (fi.FieldType.Equals(typeof(bool)))
+                            else if (fi.PropertyType.Equals(typeof(bool)))
                             {
                                 fi.SetValue(data, Convert.ToBoolean(sub));
                             }
-                            else if (fi.FieldType.Equals(typeof(string)))
+                            else if (fi.PropertyType.Equals(typeof(string)))
                             {
                                 // --- If string was written using UTF8 ---
-                                fi.SetValue(data, sub);
+                                fi.SetValue(data, sub.Trim());
 
                                 // --- ALTERNATIVE: Chars were written to file ---
                                 //char[] tmp = new char[la.length - 1];
@@ -57,36 +57,36 @@ namespace VariableDetector.Helpers
                                 //}
                                 //fi.SetValue(data, new string(tmp));
                             }
-                            else if (fi.FieldType.Equals(typeof(double)))
+                            else if (fi.PropertyType.Equals(typeof(double)))
                             {
                                 fi.SetValue(data, Convert.ToDouble(sub));
                             }
-                            else if (fi.FieldType.Equals(typeof(decimal)))
+                            else if (fi.PropertyType.Equals(typeof(decimal)))
                             {
                                 fi.SetValue(data, Convert.ToDecimal(sub)/(decimal)la.divider);
                             }
-                            else if (fi.FieldType.Equals(typeof(short)))
+                            else if (fi.PropertyType.Equals(typeof(short)))
                             {
                                 fi.SetValue(data, Convert.ToInt16(sub));
                             }
-                            else if (fi.FieldType.Equals(typeof(long)))
+                            else if (fi.PropertyType.Equals(typeof(long)))
                             {
                                 fi.SetValue(data, Convert.ToInt64(sub));
                             }
-                            else if (fi.FieldType.Equals(typeof(float)))
+                            else if (fi.PropertyType.Equals(typeof(float)))
                             {
                                 if(sub.Trim().Length > 0)
                                     fi.SetValue(data, Convert.ToSingle(sub));
                             }
-                            else if (fi.FieldType.Equals(typeof(ushort)))
+                            else if (fi.PropertyType.Equals(typeof(ushort)))
                             {
                                 fi.SetValue(data, Convert.ToUInt16(sub));
                             }
-                            else if (fi.FieldType.Equals(typeof(uint)))
+                            else if (fi.PropertyType.Equals(typeof(uint)))
                             {
                                 fi.SetValue(data, Convert.ToUInt32(sub));
                             }
-                            else if (fi.FieldType.Equals(typeof(ulong)))
+                            else if (fi.PropertyType.Equals(typeof(ulong)))
                             {
                                 fi.SetValue(data, Convert.ToUInt64(sub));
                             }

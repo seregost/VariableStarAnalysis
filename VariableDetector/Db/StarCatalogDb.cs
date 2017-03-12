@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Data.Entity;
 using System.ComponentModel.DataAnnotations.Schema;
+using VariableDetector.Models;
 
 namespace VariableDetector.Db
 {
@@ -14,6 +15,7 @@ namespace VariableDetector.Db
         public DbSet<D_Star> Stars { get; set; }
         public DbSet<F_Sample> Samples { get; set; }
         public DbSet<D_ChartEntry> ChartEntries { get; set; }
+        public DbSet<D_VSXEntry> VSXEntries { get; set; }
     }
 
     public class D_Frame
@@ -27,6 +29,7 @@ namespace VariableDetector.Db
         public double LocLat { get; set; }
         public double LocLng { get; set; }
         public string File { get; set; }
+        public int Reported { get; set; }
     }
 
     public class D_Star

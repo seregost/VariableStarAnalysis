@@ -25,6 +25,15 @@ namespace VariableDetector.Helpers
             }
         }
 
+        public static string ObsCode
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["ObsCode"];
+            }
+        }
+
+
         public static double LocLat
         {
             get
@@ -64,7 +73,7 @@ namespace VariableDetector.Helpers
             }
         }
 
-        private static int _comparables = 10;
+        private static int _comparables = 3;
         public static int Comparables
         {
             get
@@ -88,6 +97,24 @@ namespace VariableDetector.Helpers
             {
                 _meridianflipframe = value;
             }
+        }
+
+        private static int _minsnr = 50;
+        public static int MinSNR
+        {
+            get
+            {
+                return _minsnr;
+            }
+            set
+            {
+                _minsnr = value;
+            }
+        }
+
+        public static string GetOutput(string file)
+        {
+            return ConfigurationManager.AppSettings["WorkingPath"]+ "\\" + file;
         }
 
         public static bool ParseCommands(string[] args)
@@ -125,7 +152,18 @@ namespace VariableDetector.Helpers
                             Console.WriteLine("Please specify directory for loading frames.");
                             return false;
                         }
-                        
+
+                    case "-msnr":
+                        if (args.Count() > i + 1)
+                        {
+                            MinSNR = Convert.ToInt32(args[++i]);
+                            break;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Please specify minimum snr.");
+                            return false;
+                        }
                     case "-lresults":
                         if (args.Count() > i + 1)
                         {

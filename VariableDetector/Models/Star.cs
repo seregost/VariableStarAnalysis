@@ -108,5 +108,6 @@ namespace VariableDetector.Models
         public decimal Score { get; set; }
 
         public List<SampleData> Samples { get; set; }
+
     }
 }

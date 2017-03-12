@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace VariableDetector.Helpers
 {
-    [AttributeUsage(AttributeTargets.Field)]
+    [AttributeUsage(AttributeTargets.Property)]
     class LayoutAttribute : Attribute
     {
         private int _index;

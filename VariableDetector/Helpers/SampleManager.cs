@@ -59,6 +59,8 @@ namespace VariableDetector.Helpers
             foreach (D_Frame d_frame in frames)
                 existingsamples.AddRange(db.Samples.Where(x => x.ID_Frame == d_frame.ID).ToList());
 
+            int starcount = 0;
+            Console.WriteLine();
             do
             {
                 // Create star if it doesn't exist.
@@ -73,7 +75,7 @@ namespace VariableDetector.Helpers
                         J2000_RA = csv.GetField<double>(1),
                         J2000_DEC = csv.GetField<double>(2)
                     };
-                    VSXEntry entry = StarCatalog.GetVSXEntry(name);
+                    D_VSXEntry entry = StarCatalog.GetVSXEntry(star.J2000_RA, star.J2000_DEC);
                     if (entry != null)
                         star.OID = Convert.ToInt32(entry.OID);
                     else
@@ -111,6 +113,7 @@ namespace VariableDetector.Helpers
                         frame++;
                     }
                 }
+                Console.Write("\rStars loaded: " + ++starcount);
             }
             while (csv.Read());
 

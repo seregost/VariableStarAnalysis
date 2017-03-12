@@ -41,6 +41,7 @@ namespace VariableDetector.Helpers
                         frame.LocLat = GlobalVariables.LocLat;
                         frame.LocLng = GlobalVariables.LocLng;
                         frame.Camera = hdr.GetStringValue("INSTRUME");
+                        frame.Reported = 0;
                     }
                 }
             }

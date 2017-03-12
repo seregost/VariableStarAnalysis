@@ -1,12 +1,13 @@
-﻿using CsvHelper;
-using LevelDB;
+﻿using LevelDB;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using VariableDetector.Helpers;
+using VariableDetector.Db;
+
 
 namespace VariableDetector.Models
 {
@@ -72,9 +73,60 @@ namespace VariableDetector.Models
 
             return possibilities;
         }
+        /// <summary>
+        /// https://msdn.microsoft.com/en-us/library/system.net.webrequest(v=vs.110).aspx
+        /// </summary>
+        /// <param name="url"></param>
+        /// <returns></returns>
+        private static string GetHTML(string url)
+        {
+            // Create a request for the URL. 		
+            WebRequest request = WebRequest.Create(url);
+            // If required by the server, set the credentials.
+            request.Credentials = CredentialCache.DefaultCredentials;
+            // Get the response.
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            // Get the stream containing content returned by the server.
+            Stream dataStream = response.GetResponseStream();
+            // Open the stream using a StreamReader for easy access.
+            StreamReader reader = new StreamReader(dataStream);
+            // Read the content.
+            string responseFromServer = reader.ReadToEnd();
+            // Cleanup the streams and the response.
+            reader.Close();
+            dataStream.Close();
+            response.Close();
+
+            return responseFromServer;
+        }
+
         #endregion
 
         #region Public
+        public static string GetAUID(D_VSXEntry entry)
+        {
+            using (var db = new StarCatalogContext())
+            {
+                if(entry.AUID == null)
+                { 
+                    var html = GetHTML("http://www.aavso.org/vsx/index.php?view=detail.top&oid=" + entry.OID.Trim());
+
+                    string pattern = @"\d+-\D+-\d+";
+                    Regex rgx = new Regex(pattern, RegexOptions.IgnoreCase);
+                    MatchCollection matches = rgx.Matches(html);
+
+                    if (matches.Count > 0)
+                    {
+                        db.VSXEntries.Attach(entry);
+                        entry.AUID = matches[0].Value;
+                    }
+                    db.SaveChanges();
+                }
+                return entry.AUID;
+            }
+        }
+
+   
         public static void BuildPPMCatalog(string directory)
         {
             string[] files = Directory.GetFiles(directory);
@@ -94,39 +146,49 @@ namespace VariableDetector.Models
         public static void BuildVSXCatalog(string directory)
         {
             string[] files = Directory.GetFiles(directory);
+
+            int i = 0;
+            var db = new StarCatalogContext();
             foreach (string file in files)
             {
                 StreamReader stream = File.OpenText(file);
-                int found = 0;
-                int notfound = 0;
-
+                //int found = 0;
+                //int notfound = 0;
+                    
                 while (!stream.EndOfStream)
                 {
                     string entry = stream.ReadLine();
 
-                    VSXEntry md = new VSXEntry();
+                    D_VSXEntry md = new D_VSXEntry();
 
                     FixedLengthReader flr = new FixedLengthReader(entry);
                     flr.read(md);
 
-                    string key = FindPPMXKey(md.RADeg, md.DEDeg);
+                    db.VSXEntries.Add(md);
+                    //string key = FindPPMXKey(md.RADeg, md.DEDeg);
 
-                    if (key != null)
-                    {
-                        found++;
-                        _ppmdb.Put(WriteOptions.Default, key+".vsxinfo", entry);
-                    }
-                    else
+                    //if (key != null)
+                    //{
+                    //    found++;
+                    //    _ppmdb.Put(WriteOptions.Default, key+".vsxinfo", entry);
+                    //}
+                    //else
+                    //{ 
+                    //    notfound++;
+
+                    //    // Just use the closes match.
+                    //    key = ConvertToKey(md.RADeg, md.DEDeg)[1];
+
+                    //    _ppmdb.Put(WriteOptions.Default, key + ".vsxinfo", entry);
+                    //}
+                    //if ((found+notfound)%100 == 0)
+                    //    Console.Write(String.Format("\rFound: {0} Not Found: {1}", found, notfound));
+                    if (i++ % 1000 == 0)
                     { 
-                        notfound++;
-
-                        // Just use the closes match.
-                        key = ConvertToKey(md.RADeg, md.DEDeg)[1];
-
-                        _ppmdb.Put(WriteOptions.Default, key + ".vsxinfo", entry);
+                        db.SaveChanges();
+                        db.Dispose();
+                        db = new StarCatalogContext();
                     }
-                    if ((found+notfound)%100 == 0)
-                        Console.Write(String.Format("\rFound: {0} Not Found: {1}", found, notfound));
                 }
                 Console.WriteLine();
                 Console.WriteLine("Completed loading catalog: " + file);
@@ -145,21 +207,27 @@ namespace VariableDetector.Models
             return md;
         }
 
-        public static VSXEntry GetVSXEntry(string ppmx)
+        public static D_VSXEntry GetVSXEntry(double ra, double dec)
         {
             Slice encodedstar;
 
-            if (_ppmdb.TryGet(ReadOptions.Default, ppmx.Substring(0, 15)+".vsxinfo", out encodedstar))
-            { 
-                VSXEntry md = new VSXEntry();
+            using (var db = new StarCatalogContext())
+            {
+                var result = db.VSXEntries.Where(x => Math.Abs((double)x.RADeg - (float)ra) < 0.001 && Math.Abs((double)x.DEDeg - (float)dec) < 0.001).FirstOrDefault();
 
-                FixedLengthReader flr = new FixedLengthReader(encodedstar.ToString());
-                flr.read(md);
+                return result;
+                //if (_ppmdb.TryGet(ReadOptions.Default, ppmx.Substring(0, 15) + ".vsxinfo", out encodedstar))
+                //{
+                //    D_VSXEntry md = new D_VSXEntry();
 
-                return md;
+                //    FixedLengthReader flr = new FixedLengthReader(encodedstar.ToString());
+                //    flr.read(md);
+
+                //    return md;
+                //}
+                //else
+                //    return null;
             }
-            else
-                return null;
         }
 
         public static void Dispose()
